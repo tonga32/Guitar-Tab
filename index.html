@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transcriptor de Guitarra AI (Basic-Pitch + MIDI)</title>
+    <title>Transcriptor de Guitarra AI + MIDI</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- TensorFlow.js y Spotify Basic-Pitch -->
+    <!-- TensorFlow.js y Spotify Basic-Pitch (Opcionales con respaldo local) -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@spotify/basic-pitch@1.0.1/dist/index.min.js"></script>
     <!-- Tone.js para Reproductor MIDI Sintetizado -->
@@ -43,15 +43,15 @@
         <div class="max-w-6xl mx-auto flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <div class="p-2.5 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20">
-                    <i class="fa-solid fa-brain text-xl"></i>
+                    <i class="fa-solid fa-guitar text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg text-white leading-tight">Guitar Tab AI (Anti-Ghost Notes)</h1>
-                    <p class="text-xs text-slate-400">Transcripción neuronal avanzada con filtros de ruido</p>
+                    <h1 class="font-bold text-lg text-white leading-tight">Guitar Tab Transcriber AI</h1>
+                    <p class="text-xs text-slate-400">Transcripción y Reproductor MIDI Interactivo</p>
                 </div>
             </div>
             <div id="ai-status" class="text-xs px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full font-mono flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Cargando Modelo IA...
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Inicializando motor...
             </div>
         </div>
     </header>
@@ -64,14 +64,14 @@
             <div class="bg-studio-800/80 border border-studio-700/60 rounded-2xl p-5 shadow-xl backdrop-blur flex flex-col justify-between">
                 <div>
                     <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-file-audio text-amber-500"></i> Canción Completa
+                        <i class="fa-solid fa-file-audio text-amber-500"></i> Archivo de Audio
                     </h2>
                     
                     <div id="drop-zone" onclick="document.getElementById('audio-input').click()" class="border-2 border-dashed border-studio-700 hover:border-amber-500/60 bg-studio-950/60 rounded-xl p-5 text-center cursor-pointer transition-all group">
                         <input type="file" id="audio-input" accept="audio/*" class="hidden" onchange="handleFileSelect(event)">
                         <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-500 group-hover:text-amber-500 transition-colors mb-2"></i>
                         <p class="text-xs text-slate-300 font-medium">Sube tu archivo de audio</p>
-                        <p class="text-[10px] text-slate-500 mt-1">MP3, WAV, FLAC</p>
+                        <p class="text-[10px] text-slate-500 mt-1">MP3, WAV, FLAC, M4A</p>
                     </div>
 
                     <div id="file-info" class="mt-3 hidden bg-studio-950 px-3 py-2 rounded-lg border border-studio-700 flex items-center justify-between">
@@ -81,10 +81,10 @@
                 </div>
             </div>
 
-            <!-- Parameters Card with Fine-Tuning -->
+            <!-- Parameters Card -->
             <div class="bg-studio-800/80 border border-studio-700/60 rounded-2xl p-5 shadow-xl backdrop-blur flex flex-col justify-between">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-                    <i class="fa-solid fa-sliders text-amber-500"></i> Filtros Anti-Ruido IA
+                    <i class="fa-solid fa-sliders text-amber-500"></i> Parámetros
                 </h2>
 
                 <div class="space-y-3">
@@ -99,25 +99,15 @@
 
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300">Sensibilidad de Ataque (Onset)</span>
-                            <span id="onset-val" class="text-amber-400 font-mono">0.65</span>
+                            <span class="text-slate-300">Sensibilidad de Detección</span>
+                            <span id="onset-val" class="text-amber-400 font-mono">0.60</span>
                         </div>
-                        <!-- Valor por defecto subido a 0.65 para evitar falsos positivos -->
-                        <input type="range" id="onset-slider" min="0.3" max="0.9" step="0.05" value="0.65" oninput="document.getElementById('onset-val').innerText = this.value" class="w-full accent-amber-500 bg-studio-950 rounded h-1.5 cursor-pointer">
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300">Confianza de Nota (Frame)</span>
-                            <span id="frame-val" class="text-amber-400 font-mono">0.45</span>
-                        </div>
-                        <!-- Control añadido para filtrar notas fantasma por baja confianza -->
-                        <input type="range" id="frame-slider" min="0.1" max="0.8" step="0.05" value="0.45" oninput="document.getElementById('frame-val').innerText = this.value" class="w-full accent-amber-500 bg-studio-950 rounded h-1.5 cursor-pointer">
+                        <input type="range" id="onset-slider" min="0.2" max="0.9" step="0.05" value="0.60" oninput="document.getElementById('onset-val').innerText = this.value" class="w-full accent-amber-500 bg-studio-950 rounded h-1.5 cursor-pointer">
                     </div>
                 </div>
 
-                <button id="transcribe-btn" onclick="startBasicPitchTranscription()" disabled class="w-full mt-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-studio-700 disabled:text-slate-500 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-brain"></i> Transcribir sin Ruido
+                <button id="transcribe-btn" onclick="startTranscription()" disabled class="w-full mt-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-studio-700 disabled:text-slate-500 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Transcribir Audio
                 </button>
             </div>
 
@@ -129,12 +119,12 @@
 
                 <div class="flex-1 flex flex-col justify-center items-center bg-studio-950/60 rounded-xl p-4 border border-studio-700/50">
                     <audio id="audio-player" controls class="w-full h-10 mb-2"></audio>
-                    <p class="text-[11px] text-slate-500 text-center">Audio original de la canción.</p>
+                    <p class="text-[11px] text-slate-500 text-center">Audio original cargado.</p>
                 </div>
 
                 <div id="progress-container" class="mt-4 hidden">
                     <div class="flex justify-between text-xs text-slate-400 mb-1">
-                        <span id="progress-status">Filtrando frecuencias y notas...</span>
+                        <span id="progress-status">Procesando frecuencias...</span>
                         <span id="progress-percent" class="font-mono text-amber-400">0%</span>
                     </div>
                     <div class="w-full bg-studio-950 rounded-full h-2 overflow-hidden border border-studio-700/50">
@@ -150,9 +140,9 @@
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 mb-4 border-b border-studio-700/60 gap-3">
                 <div>
                     <h2 class="text-base font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-music text-amber-500"></i> Tablatura Limpia & Reproductor MIDI
+                        <i class="fa-solid fa-music text-amber-500"></i> Tablatura Transcrita & Reproductor MIDI
                     </h2>
-                    <p class="text-xs text-slate-400">Resultado optimizado descartando artefactos de mezcla</p>
+                    <p class="text-xs text-slate-400">Escucha la transcripción nota por nota en tiempo real</p>
                 </div>
                 <div class="flex items-center space-x-2">
                     <button onclick="clearTab()" class="px-3 py-1.5 bg-studio-700 hover:bg-studio-600 text-slate-300 text-xs rounded-lg transition-colors">Limpiar</button>
@@ -186,7 +176,7 @@
             <div id="tab-container" class="flex-1 bg-studio-950 rounded-xl p-4 border border-studio-700/50 overflow-x-auto relative min-h-[240px]">
                 <div id="playhead" class="playhead-line hidden"></div>
                 <div id="tab-output" class="tab-block text-amber-400/90 text-sm font-mono">
-                    <span class="text-slate-600 italic">// Sube tu canción, ajusta los filtros de ruido y presiona "Transcribir sin Ruido"...</span>
+                    <span class="text-slate-600 italic">// Sube un archivo de audio y presiona "Transcribir Audio"...</span>
                 </div>
             </div>
         </div>
@@ -197,6 +187,7 @@
         let basicPitchModel = null;
         let audioBuffer = null;
         let isModelLoaded = false;
+        let useAiModel = false;
         let guitarSynth = null;
         let midiSequenceData = [];
         let isMidiPlaying = false;
@@ -210,21 +201,26 @@
             half_step_down: { name: "Eb Down", midi: [39, 44, 49, 54, 58, 63], notes: ["Eb", "Ab", "Db", "Gb", "Bb", "eb"] }
         };
 
-        async function initAI() {
+        // Inicializador con sistema de respaldo automático anti-fallos de CDN
+        async function initEngine() {
+            const statusBadge = document.getElementById('ai-status');
             try {
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@spotify/basic-pitch@1.0.1/model/model.json';
                 basicPitchModel = await basicPitch.buildBasicPitchModel(MODEL_URL);
                 isModelLoaded = true;
-                const statusBadge = document.getElementById('ai-status');
+                useAiModel = true;
                 statusBadge.className = "text-xs px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-mono flex items-center gap-2";
-                statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> IA Lista (Filtros Anti-Ruido Activos)`;
-                if (audioBuffer) document.getElementById('transcribe-btn').disabled = false;
+                statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Motor IA Activo`;
             } catch (err) {
-                console.error("Error cargando modelo Basic-Pitch:", err);
-                document.getElementById('ai-status').innerHTML = `<span class="text-red-400">Error cargando IA</span>`;
+                console.warn("CDN de IA no disponible, activando motor local de respaldo:", err);
+                isModelLoaded = true;
+                useAiModel = false; // Respaldo local activo garantizado
+                statusBadge.className = "text-xs px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full font-mono flex items-center gap-2";
+                statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-400"></span> Motor Local Listo`;
             }
+            if (audioBuffer) document.getElementById('transcribe-btn').disabled = false;
         }
-        initAI();
+        initEngine();
 
         async function handleFileSelect(e) {
             const file = e.target.files[0];
@@ -249,8 +245,39 @@
             }
         }
 
-        async function startBasicPitchTranscription() {
-            if (!audioBuffer || !basicPitchModel) return;
+        // Algoritmo de detección de tono local YIN / Autocorrelación por respaldo
+        function detectPitchLocal(buffer, sampleRate) {
+            const SIZE = buffer.length;
+            let sumOfSquares = 0;
+            for (let i = 0; i < SIZE; i++) sumOfSquares += buffer[i] * buffer[i];
+            if (Math.sqrt(sumOfSquares / SIZE) < 0.02) return null;
+
+            let r1 = 0, r2 = SIZE - 1;
+            const thres = 0.2;
+            for (let i = 0; i < SIZE / 2; i++) { if (Math.abs(buffer[i]) < thres) { r1 = i; break; } }
+            for (let i = 1; i < SIZE / 2; i++) { if (Math.abs(buffer[SIZE - i]) < thres) { r2 = SIZE - i; break; } }
+
+            const buf = buffer.slice(r1, r2);
+            const c = new Float32Array(buf.length).fill(0);
+            for (let i = 0; i < buf.length; i++) {
+                for (let j = 0; j < buf.length - i; j++) c[i] += buf[j] * buf[j + i];
+            }
+
+            let d = 0;
+            while (c[d] > c[d + 1]) d++;
+            let maxval = -1, maxpos = -1;
+            for (let i = d; i < buf.length; i++) {
+                if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+            }
+            if (maxpos <= 0) return null;
+
+            const freq = sampleRate / maxpos;
+            if (freq < 70 || freq > 1100) return null;
+            return freq;
+        }
+
+        async function startTranscription() {
+            if (!audioBuffer) return;
             stopMidiPlay();
             initSynth();
 
@@ -260,45 +287,62 @@
             const statusText = document.getElementById('progress-status');
             container.classList.remove('hidden');
 
-            // Recoger valores de los sliders ajustados anti-ruido
             const onsetThresh = parseFloat(document.getElementById('onset-slider').value);
-            const frameThresh = parseFloat(document.getElementById('frame-slider').value);
 
             try {
-                let framesData = [], onsetsData = [], contoursData = [];
-                await basicPitch.evaluateModel(
-                    audioBuffer,
-                    basicPitchModel,
-                    (p) => {
-                        const val = Math.round(p * 100);
-                        bar.style.width = val + '%';
-                        pctText.innerText = val + '%';
-                        statusText.innerText = 'Procesando red neuronal y filtrando ruido...';
-                    },
-                    (f, o, c) => {
-                        framesData.push(...f);
-                        onsetsData.push(...o);
-                        contoursData.push(...c);
-                    }
-                );
+                let notes = [];
 
-                statusText.innerText = 'Eliminando notas fantasma y mapeando diapasón...';
-                
-                // Parámetro de duración mínima aumentado a 8 para descartar notas fantasma ultra cortas
-                const notes = basicPitch.noteFramesToTime(
-                    framesData, 
-                    onsetsData, 
-                    contoursData, 
-                    onsetThresh, 
-                    frameThresh, 
-                    8, 
-                    true
-                );
-                
+                if (useAiModel && basicPitchModel) {
+                    let framesData = [], onsetsData = [], contoursData = [];
+                    await basicPitch.evaluateModel(
+                        audioBuffer,
+                        basicPitchModel,
+                        (p) => {
+                            const val = Math.round(p * 100);
+                            bar.style.width = val + '%';
+                            pctText.innerText = val + '%';
+                            statusText.innerText = 'Analizando con modelo neuronal...';
+                        },
+                        (f, o, c) => {
+                            framesData.push(...f);
+                            onsetsData.push(...o);
+                            contoursData.push(...c);
+                        }
+                    );
+                    notes = basicPitch.noteFramesToTime(framesData, onsetsData, contoursData, onsetThresh, 0.3, 5, true);
+                } else {
+                    // Motor local de respaldo basado en frames de audio
+                    statusText.innerText = 'Analizando frecuencias locales...';
+                    const channelData = audioBuffer.getChannelData(0);
+                    const sampleRate = audioBuffer.sampleRate;
+                    const frameSize = Math.floor(sampleRate * 0.1);
+                    const totalFrames = Math.floor(channelData.length / frameSize);
+
+                    for (let i = 0; i < totalFrames; i++) {
+                        const segment = channelData.subarray(i * frameSize, (i + 1) * frameSize);
+                        const freq = detectPitchLocal(segment, sampleRate);
+                        if (freq) {
+                            const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+                            notes.push({
+                                startTimeSeconds: i * 0.1,
+                                durationSeconds: 0.2,
+                                pitchMidi: midi
+                            });
+                        }
+                        if (i % 30 === 0) {
+                            const pct = Math.round((i / totalFrames) * 100);
+                            bar.style.width = pct + '%';
+                            pctText.innerText = pct + '%';
+                            await new Promise(r => setTimeout(r, 1));
+                        }
+                    }
+                }
+
+                statusText.innerText = 'Mapeando notas al diapasón...';
                 processNotesToTabAndMidi(notes);
             } catch (err) {
                 console.error(err);
-                alert('Ocurrió un error al procesar la canción con la IA.');
+                alert('Ocurrió un error al procesar la transcripción.');
             } finally {
                 container.classList.add('hidden');
             }
@@ -312,7 +356,7 @@
 
             midiSequenceData = [];
             const timeStep = 0.25;
-            const maxTime = notes.reduce((max, n) => Math.max(max, n.endTimeSeconds), 0);
+            const maxTime = notes.reduce((max, n) => Math.max(max, (n.startTimeSeconds || 0) + (n.durationSeconds || 0)), 0);
             totalMidiDuration = maxTime || 5;
 
             const totalCols = Math.ceil(totalMidiDuration / timeStep);
@@ -341,7 +385,7 @@
                     const noteName = Tone.Frequency(midiVal, "midi").toNote();
                     midiSequenceData.push({
                         time: note.startTimeSeconds,
-                        duration: Math.max(0.1, note.durationSeconds),
+                        duration: Math.max(0.1, note.durationSeconds || 0.2),
                         pitch: noteName,
                         colIndex: colIndex
                     });
