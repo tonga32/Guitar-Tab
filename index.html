@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transcriptor de Guitarra a Tablatura + Reproductor MIDI</title>
+    <title>Transcriptor de Guitarra AI (Basic-Pitch + MIDI)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Tone.js CDN para síntesis MIDI en el navegador -->
+    <!-- TensorFlow.js y Spotify Basic-Pitch -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@spotify/basic-pitch@1.0.1/dist/index.min.js"></script>
+    <!-- Tone.js para Reproductor MIDI Sintetizado -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     
     <script>
@@ -16,70 +19,21 @@
             theme: {
                 extend: {
                     colors: {
-                        studio: {
-                            950: '#0b0f17',
-                            900: '#111827',
-                            800: '#1f2937',
-                            700: '#374151',
-                        }
+                        studio: { 950: '#0b0f17', 900: '#111827', 800: '#1f2937', 700: '#374151' }
                     }
                 }
             }
         }
     </script>
     <style>
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0b0f17;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #374151;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #f59e0b;
-        }
-
-        .tab-block {
-            font-family: 'JetBrains Mono', 'Courier New', monospace;
-            white-space: pre;
-            line-height: 1.25;
-            letter-spacing: 0px;
-            position: relative;
-        }
-
-        .tab-column {
-            display: inline-block;
-            position: relative;
-            cursor: pointer;
-            border-radius: 2px;
-            transition: background-color 0.1s ease;
-        }
-
-        .tab-column:hover {
-            background-color: rgba(245, 158, 11, 0.15);
-        }
-
-        .tab-column.active-note {
-            background-color: rgba(245, 158, 11, 0.35);
-            box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
-        }
-
-        .playhead-line {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background-color: #ef4444;
-            box-shadow: 0 0 10px #ef4444;
-            pointer-events: none;
-            transition: left 0.05s linear;
-            z-index: 20;
-        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0b0f17; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        .tab-block { font-family: 'JetBrains Mono', monospace; white-space: pre; line-height: 1.25; position: relative; }
+        .tab-column { display: inline-block; position: relative; cursor: pointer; border-radius: 2px; transition: background-color 0.1s ease; }
+        .tab-column:hover { background-color: rgba(245, 158, 11, 0.15); }
+        .tab-column.active-note { background-color: rgba(245, 158, 11, 0.35); box-shadow: 0 0 8px rgba(245, 158, 11, 0.5); }
+        .playhead-line { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; box-shadow: 0 0 10px #ef4444; pointer-events: none; z-index: 20; transition: left 0.05s linear; }
     </style>
 </head>
 <body class="bg-studio-950 text-slate-100 min-h-screen font-sans flex flex-col justify-between">
@@ -89,17 +43,15 @@
         <div class="max-w-6xl mx-auto flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <div class="p-2.5 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20">
-                    <i class="fa-solid fa-guitar text-xl"></i>
+                    <i class="fa-solid fa-brain text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg text-white leading-tight">Guitar Tab Transcriber</h1>
-                    <p class="text-xs text-slate-400">Audio a Tablatura con Reproducción MIDI Sincronizada</p>
+                    <h1 class="font-bold text-lg text-white leading-tight">Guitar Tab AI (Anti-Ghost Notes)</h1>
+                    <p class="text-xs text-slate-400">Transcripción neuronal avanzada con filtros de ruido</p>
                 </div>
             </div>
-            <div class="flex items-center space-x-2">
-                <span class="text-xs px-3 py-1 bg-studio-800 text-amber-400 border border-studio-700 rounded-full font-mono">
-                    <i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Audio API + Tone.js
-                </span>
+            <div id="ai-status" class="text-xs px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full font-mono flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Cargando Modelo IA...
             </div>
         </div>
     </header>
@@ -107,21 +59,19 @@
     <!-- Main Container -->
     <main class="max-w-6xl w-full mx-auto p-4 md:p-6 flex-1 grid grid-cols-1 gap-6">
 
-        <!-- Top Controls & Audio Panel -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            <!-- File Input & Mic Card -->
+            <!-- Audio Input Card -->
             <div class="bg-studio-800/80 border border-studio-700/60 rounded-2xl p-5 shadow-xl backdrop-blur flex flex-col justify-between">
                 <div>
                     <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-file-audio text-amber-500"></i> Entrada de Audio
+                        <i class="fa-solid fa-file-audio text-amber-500"></i> Canción Completa
                     </h2>
                     
                     <div id="drop-zone" onclick="document.getElementById('audio-input').click()" class="border-2 border-dashed border-studio-700 hover:border-amber-500/60 bg-studio-950/60 rounded-xl p-5 text-center cursor-pointer transition-all group">
                         <input type="file" id="audio-input" accept="audio/*" class="hidden" onchange="handleFileSelect(event)">
                         <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-500 group-hover:text-amber-500 transition-colors mb-2"></i>
-                        <p class="text-xs text-slate-300 font-medium">Arrastra un archivo o haz clic</p>
-                        <p class="text-[10px] text-slate-500 mt-1">MP3, WAV, OGG, M4A</p>
+                        <p class="text-xs text-slate-300 font-medium">Sube tu archivo de audio</p>
+                        <p class="text-[10px] text-slate-500 mt-1">MP3, WAV, FLAC</p>
                     </div>
 
                     <div id="file-info" class="mt-3 hidden bg-studio-950 px-3 py-2 rounded-lg border border-studio-700 flex items-center justify-between">
@@ -129,74 +79,62 @@
                         <i class="fa-solid fa-circle-check text-emerald-400 text-xs"></i>
                     </div>
                 </div>
-
-                <div class="mt-4 pt-4 border-t border-studio-700/50 flex items-center justify-between">
-                    <span class="text-xs text-slate-400">O graba directo:</span>
-                    <button id="mic-btn" onclick="toggleMicRecording()" class="px-3 py-1.5 bg-studio-700 hover:bg-studio-600 text-slate-200 text-xs rounded-lg transition-all flex items-center gap-2">
-                        <i id="mic-icon" class="fa-solid fa-microphone text-red-400"></i>
-                        <span id="mic-text">Grabar Mic</span>
-                    </button>
-                </div>
             </div>
 
-            <!-- Parameters Card -->
+            <!-- Parameters Card with Fine-Tuning -->
             <div class="bg-studio-800/80 border border-studio-700/60 rounded-2xl p-5 shadow-xl backdrop-blur flex flex-col justify-between">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-                    <i class="fa-solid fa-sliders text-amber-500"></i> Configuración
+                    <i class="fa-solid fa-sliders text-amber-500"></i> Filtros Anti-Ruido IA
                 </h2>
 
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-xs text-slate-300 mb-1">Afinación de la Guitarra</label>
-                        <select id="tuning-select" onchange="updateTuning()" class="w-full bg-studio-950 border border-studio-700 text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500">
+                        <label class="block text-xs text-slate-300 mb-1">Afinación</label>
+                        <select id="tuning-select" class="w-full bg-studio-950 border border-studio-700 text-xs text-slate-200 rounded-lg px-3 py-2">
                             <option value="standard">Estándar (E A D G B e)</option>
                             <option value="drop_d">Drop D (D A D G B e)</option>
                             <option value="half_step_down">Eb Down (Eb Ab Db Gb Bb eb)</option>
-                            <option value="full_step_down">D Down (D G C F A d)</option>
-                            <option value="open_d">Open D (D A D F# A D)</option>
                         </select>
                     </div>
 
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300">Sensibilidad / División</span>
-                            <span id="quantize-val" class="text-amber-400 font-mono">Corcheas (1/8)</span>
+                            <span class="text-slate-300">Sensibilidad de Ataque (Onset)</span>
+                            <span id="onset-val" class="text-amber-400 font-mono">0.65</span>
                         </div>
-                        <select id="quantize-select" class="w-full bg-studio-950 border border-studio-700 text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500">
-                            <option value="4">Negras (1/4)</option>
-                            <option value="8" selected>Corcheas (1/8)</option>
-                            <option value="16">Semicorcheas (1/16)</option>
-                        </select>
+                        <!-- Valor por defecto subido a 0.65 para evitar falsos positivos -->
+                        <input type="range" id="onset-slider" min="0.3" max="0.9" step="0.05" value="0.65" oninput="document.getElementById('onset-val').innerText = this.value" class="w-full accent-amber-500 bg-studio-950 rounded h-1.5 cursor-pointer">
                     </div>
 
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300">Traste Máximo</span>
-                            <span id="maxfret-val" class="text-amber-400 font-mono">15</span>
+                            <span class="text-slate-300">Confianza de Nota (Frame)</span>
+                            <span id="frame-val" class="text-amber-400 font-mono">0.45</span>
                         </div>
-                        <input type="range" id="maxfret-slider" min="12" max="24" value="15" oninput="document.getElementById('maxfret-val').innerText = this.value" class="w-full accent-amber-500 bg-studio-950 rounded h-1.5 cursor-pointer">
+                        <!-- Control añadido para filtrar notas fantasma por baja confianza -->
+                        <input type="range" id="frame-slider" min="0.1" max="0.8" step="0.05" value="0.45" oninput="document.getElementById('frame-val').innerText = this.value" class="w-full accent-amber-500 bg-studio-950 rounded h-1.5 cursor-pointer">
                     </div>
                 </div>
 
-                <button id="transcribe-btn" onclick="startTranscription()" disabled class="w-full mt-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-studio-700 disabled:text-slate-500 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> Transcribir Audio
+                <button id="transcribe-btn" onclick="startBasicPitchTranscription()" disabled class="w-full mt-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-studio-700 disabled:text-slate-500 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-brain"></i> Transcribir sin Ruido
                 </button>
             </div>
 
-            <!-- Audio Player & Visualizer Card -->
+            <!-- Player & Progress Card -->
             <div class="bg-studio-800/80 border border-studio-700/60 rounded-2xl p-5 shadow-xl backdrop-blur flex flex-col justify-between">
                 <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-                    <i class="fa-solid fa-wave-square text-amber-500"></i> Preescucha Original
+                    <i class="fa-solid fa-headphones text-amber-500"></i> Reproductor Audio
                 </h2>
 
                 <div class="flex-1 flex flex-col justify-center items-center bg-studio-950/60 rounded-xl p-4 border border-studio-700/50">
                     <audio id="audio-player" controls class="w-full h-10 mb-2"></audio>
-                    <p class="text-[11px] text-slate-500 text-center">Audio original cargado listo para análisis de frecuencias.</p>
+                    <p class="text-[11px] text-slate-500 text-center">Audio original de la canción.</p>
                 </div>
 
-                <div id="progress-bar-container" class="mt-4 hidden">
+                <div id="progress-container" class="mt-4 hidden">
                     <div class="flex justify-between text-xs text-slate-400 mb-1">
-                        <span id="progress-status-text">Procesando audio...</span>
+                        <span id="progress-status">Filtrando frecuencias y notas...</span>
                         <span id="progress-percent" class="font-mono text-amber-400">0%</span>
                     </div>
                     <div class="w-full bg-studio-950 rounded-full h-2 overflow-hidden border border-studio-700/50">
@@ -207,464 +145,264 @@
 
         </div>
 
-        <!-- Bottom Row: Tablature Output & Interactive MIDI Player -->
+        <!-- Tablature & MIDI Player Output -->
         <div class="bg-studio-800/80 border border-studio-700/60 rounded-2xl p-5 shadow-xl backdrop-blur flex-1 flex flex-col">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 mb-4 border-b border-studio-700/60 gap-3">
                 <div>
                     <h2 class="text-base font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-music text-amber-500"></i> Tablatura Transcrita & Reproductor MIDI
+                        <i class="fa-solid fa-music text-amber-500"></i> Tablatura Limpia & Reproductor MIDI
                     </h2>
-                    <p class="text-xs text-slate-400">Escucha la transcripción nota por nota en tiempo real con el sintetizador integrado</p>
+                    <p class="text-xs text-slate-400">Resultado optimizado descartando artefactos de mezcla</p>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <button onclick="clearTab()" class="px-3 py-1.5 bg-studio-700 hover:bg-studio-600 text-slate-300 text-xs rounded-lg transition-colors flex items-center gap-1.5">
-                        <i class="fa-solid fa-trash-can"></i> Limpiar
-                    </button>
-                    <button onclick="copyTabToClipboard()" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-md shadow-amber-500/10 flex items-center gap-1.5">
-                        <i class="fa-solid fa-copy"></i> Copiar Tab
-                    </button>
+                    <button onclick="clearTab()" class="px-3 py-1.5 bg-studio-700 hover:bg-studio-600 text-slate-300 text-xs rounded-lg transition-colors">Limpiar</button>
+                    <button onclick="copyTab()" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-md">Copiar Tab</button>
                 </div>
             </div>
 
-            <!-- Controles del Reproductor MIDI Integrado -->
-            <div id="midi-player-controls" class="bg-studio-900/90 border border-studio-700/60 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-4">
+            <!-- MIDI Controls -->
+            <div class="bg-studio-900/90 border border-studio-700/60 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center space-x-2">
                     <button id="midi-play-btn" onclick="toggleMidiPlay()" disabled class="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-studio-700 text-slate-950 disabled:text-slate-500 font-bold text-xs rounded-lg transition-all flex items-center gap-2 shadow-md">
-                        <i id="midi-play-icon" class="fa-solid fa-play"></i>
-                        <span id="midi-play-text">Reproducir MIDI</span>
+                        <i id="midi-play-icon" class="fa-solid fa-play"></i> <span id="midi-play-text">Reproducir MIDI</span>
                     </button>
-                    <button id="midi-stop-btn" onclick="stopMidiPlay()" disabled class="p-2 bg-studio-700 hover:bg-studio-600 text-slate-300 disabled:opacity-40 text-xs rounded-lg transition-colors">
+                    <button id="midi-stop-btn" onclick="stopMidiPlay()" disabled class="p-2 bg-studio-700 hover:bg-studio-600 text-slate-300 disabled:opacity-40 text-xs rounded-lg">
                         <i class="fa-solid fa-square"></i>
                     </button>
                 </div>
-
-                <!-- Tempo (BPM) & Volume Sliders -->
-                <div class="flex items-center space-x-6">
+                <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-2">
-                        <span class="text-xs font-semibold text-slate-400"><i class="fa-solid fa-gauge-high text-amber-500 mr-1"></i> Tempo:</span>
-                        <input type="range" id="tempo-slider" min="60" max="200" value="120" oninput="updateTempo(this.value)" class="w-24 accent-amber-500 bg-studio-800 rounded h-1.5 cursor-pointer">
-                        <span id="tempo-val" class="text-xs font-mono text-amber-400 w-10">120 BPM</span>
-                    </div>
-
-                    <div class="flex items-center space-x-2">
-                        <span class="text-xs font-semibold text-slate-400"><i class="fa-solid fa-volume-high text-amber-500 mr-1"></i> Vol:</span>
-                        <input type="range" id="volume-slider" min="-30" max="6" value="0" oninput="updateMidiVolume(this.value)" class="w-20 accent-amber-500 bg-studio-800 rounded h-1.5 cursor-pointer">
+                        <span class="text-xs text-slate-400">Tempo:</span>
+                        <input type="range" id="tempo-slider" min="60" max="200" value="120" oninput="updateTempo(this.value)" class="w-20 accent-amber-500 bg-studio-800 rounded h-1.5">
+                        <span id="tempo-val" class="text-xs font-mono text-amber-400">120 BPM</span>
                     </div>
                 </div>
-
-                <!-- Tiempo MIDI visual -->
                 <div class="text-xs font-mono text-slate-300 bg-studio-950 px-3 py-1.5 rounded-lg border border-studio-700/50">
-                    <i class="fa-regular fa-clock text-amber-500 mr-1"></i>
                     <span id="midi-timer">00:00 / 00:00</span>
                 </div>
             </div>
 
-            <!-- Tab ASCII Display Container -->
+            <!-- Tab Output -->
             <div id="tab-container" class="flex-1 bg-studio-950 rounded-xl p-4 border border-studio-700/50 overflow-x-auto relative min-h-[240px]">
                 <div id="playhead" class="playhead-line hidden"></div>
-                <div id="tab-output" class="tab-block text-amber-400/90 text-sm sm:text-base font-mono">
-                    <span class="text-slate-600 italic">// Sube un archivo de audio o graba tu guitarra y presiona "Transcribir Audio" para generar la tablatura aquí...</span>
+                <div id="tab-output" class="tab-block text-amber-400/90 text-sm font-mono">
+                    <span class="text-slate-600 italic">// Sube tu canción, ajusta los filtros de ruido y presiona "Transcribir sin Ruido"...</span>
                 </div>
             </div>
         </div>
 
     </main>
 
-    <!-- Footer -->
-    <footer class="border-t border-studio-800 bg-studio-900/40 py-3 px-6 text-center text-xs text-slate-500">
-        Guitar Tab Transcriber &copy; Web Audio & Tone.js Synthesis Engine
-    </footer>
-
-    <!-- Logic Script -->
     <script>
-        // --- Tuning Definitions (MIDI numbers for each string high to low) ---
-        // Strings ordered high to low: [e, B, G, D, A, E]
+        let basicPitchModel = null;
+        let audioBuffer = null;
+        let isModelLoaded = false;
+        let guitarSynth = null;
+        let midiSequenceData = [];
+        let isMidiPlaying = false;
+        let totalMidiDuration = 0;
+        let playbackAnimFrame = null;
+        let midiBpm = 120;
+
         const TUNINGS = {
-            standard:        { name: "Estándar", notes: ["e", "B", "G", "D", "A", "E"], midi: [64, 59, 55, 50, 45, 40] },
-            drop_d:          { name: "Drop D",   notes: ["e", "B", "G", "D", "A", "D"], midi: [64, 59, 55, 50, 45, 38] },
-            half_step_down:  { name: "Eb Down",  notes: ["eb","Bb","Gb","Db","Ab","Eb"],midi: [63, 58, 54, 49, 44, 39] },
-            full_step_down:  { name: "D Down",   notes: ["d", "A", "F", "C", "G", "D"], midi: [62, 57, 53, 48, 43, 38] },
-            open_d:          { name: "Open D",   notes: ["d", "A", "F#","D", "A", "D"], midi: [62, 57, 54, 50, 45, 38] }
+            standard: { name: "Estándar", midi: [40, 45, 50, 55, 59, 64], notes: ["E", "A", "D", "G", "B", "e"] },
+            drop_d: { name: "Drop D", midi: [38, 45, 50, 55, 59, 64], notes: ["D", "A", "D", "G", "B", "e"] },
+            half_step_down: { name: "Eb Down", midi: [39, 44, 49, 54, 58, 63], notes: ["Eb", "Ab", "Db", "Gb", "Bb", "eb"] }
         };
 
-        let currentTuningKey = 'standard';
-
-        // Web Audio Variables
-        let audioCtx = null;
-        let audioBuffer = null;
-        let micStream = null;
-        let isRecordingMic = false;
-        let mediaRecorder = null;
-        let recordedChunks = [];
-
-        // MIDI Synth & Playback State
-        let guitarSynth = null;
-        let midiSequenceData = []; // Array of { time, duration, midi, string, fret, colIndex }
-        let isMidiPlaying = false;
-        let midiBpm = 120;
-        let playbackAnimFrame = null;
-        let totalMidiDuration = 0;
-
-        // Init Tone.js Synth (Plucked Guitar Sound Simulation)
-        function initMidiSynth() {
-            if (!guitarSynth && typeof Tone !== 'undefined') {
-                guitarSynth = new Tone.PolySynth(Tone.Synth, {
-                    oscillator: { type: "triangle" },
-                    envelope: {
-                        attack: 0.005,
-                        decay: 1.2,
-                        sustain: 0.1,
-                        release: 1.2
-                    }
-                }).toDestination();
-                Tone.getDestination().volume.value = parseFloat(document.getElementById('volume-slider').value);
+        async function initAI() {
+            try {
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@spotify/basic-pitch@1.0.1/model/model.json';
+                basicPitchModel = await basicPitch.buildBasicPitchModel(MODEL_URL);
+                isModelLoaded = true;
+                const statusBadge = document.getElementById('ai-status');
+                statusBadge.className = "text-xs px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-mono flex items-center gap-2";
+                statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> IA Lista (Filtros Anti-Ruido Activos)`;
+                if (audioBuffer) document.getElementById('transcribe-btn').disabled = false;
+            } catch (err) {
+                console.error("Error cargando modelo Basic-Pitch:", err);
+                document.getElementById('ai-status').innerHTML = `<span class="text-red-400">Error cargando IA</span>`;
             }
         }
+        initAI();
 
-        // MIDI Volume & Tempo Controls
-        function updateMidiVolume(val) {
-            if (typeof Tone !== 'undefined' && Tone.getDestination()) {
-                Tone.getDestination().volume.value = parseFloat(val);
-            }
-        }
-
-        function updateTempo(val) {
-            midiBpm = parseInt(val);
-            document.getElementById('tempo-val').innerText = `${midiBpm} BPM`;
-            if (typeof Tone !== 'undefined') {
-                Tone.Transport.bpm.value = midiBpm;
-            }
-        }
-
-        // --- Pitch Detection (Autocorrelation / YIN implementation) ---
-        function detectPitch(buffer, sampleRate) {
-            const SIZE = buffer.length;
-            let sumOfSquares = 0;
-            for (let i = 0; i < SIZE; i++) {
-                sumOfSquares += buffer[i] * buffer[i];
-            }
-            const rms = Math.sqrt(sumOfSquares / SIZE);
-            if (rms < 0.015) return null; // Silence threshold
-
-            let r1 = 0, r2 = SIZE - 1;
-            const thres = 0.2;
-            for (let i = 0; i < SIZE / 2; i++) {
-                if (Math.abs(buffer[i]) < thres) { r1 = i; break; }
-            }
-            for (let i = 1; i < SIZE / 2; i++) {
-                if (Math.abs(buffer[SIZE - i]) < thres) { r2 = SIZE - i; break; }
-            }
-
-            const buf = buffer.slice(r1, r2);
-            const c = new Float32Array(buf.length).fill(0);
-            for (let i = 0; i < buf.length; i++) {
-                for (let j = 0; j < buf.length - i; j++) {
-                    c[i] = c[i] + buf[j] * buf[j + i];
-                }
-            }
-
-            let d = 0;
-            while (c[d] > c[d + 1]) d++;
-            let maxval = -1, maxpos = -1;
-            for (let i = d; i < buf.length; i++) {
-                if (c[i] > maxval) {
-                    maxval = c[i];
-                    maxpos = i;
-                }
-            }
-            let T0 = maxpos;
-
-            if (T0 === -1 || T0 === 0) return null;
-
-            // Parabolic interpolation for fine tuning pitch
-            const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
-            const a = (x1 + x3 - 2 * x2) / 2;
-            const b = (x3 - x1) / 2;
-            if (a !== 0) T0 = T0 - b / (2 * a);
-
-            const freq = sampleRate / T0;
-            if (freq < 70 || freq > 1100) return null; // Filter out unrealistic guitar range
-            return freq;
-        }
-
-        // Convert Frequency to MIDI note number
-        function freqToMidi(freq) {
-            return Math.round(69 + 12 * Math.log2(freq / 440));
-        }
-
-        // Convert MIDI note number to pitch name (e.g., 60 -> C4)
-        function midiToPitchName(midi) {
-            const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-            const octave = Math.floor(midi / 12) - 1;
-            const noteName = notes[midi % 12];
-            return `${noteName}${octave}`;
-        }
-
-        // --- Guitar Mapping Optimization Algorithm ---
-        function mapNotesToTab(midiNotes) {
-            const tuning = TUNINGS[currentTuningKey].midi; // Array of 6 string base MIDIs [high E to low E]
-            const maxFret = parseInt(document.getElementById('maxfret-slider').value);
-
-            let tabEvents = [];
-            let lastFret = 5; // Default hand position around fret 5
-
-            midiNotes.forEach(note => {
-                if (!note || note.midi < 36 || note.midi > 88) {
-                    tabEvents.push(null);
-                    return;
-                }
-
-                const midiVal = note.midi;
-                let possiblePositions = [];
-
-                for (let strIdx = 0; strIdx < 6; strIdx++) {
-                    const stringBaseMidi = tuning[strIdx];
-                    const fret = midiVal - stringBaseMidi;
-                    if (fret >= 0 && fret <= maxFret) {
-                        possiblePositions.push({ string: strIdx, fret: fret, midi: midiVal });
-                    }
-                }
-
-                if (possiblePositions.length === 0) {
-                    tabEvents.push(null);
-                    return;
-                }
-
-                possiblePositions.sort((a, b) => {
-                    const distA = Math.abs(a.fret - lastFret);
-                    const distB = Math.abs(b.fret - lastFret);
-                    return distA - distB;
-                });
-
-                const bestPos = possiblePositions[0];
-                if (bestPos.fret > 0) {
-                    lastFret = bestPos.fret;
-                }
-                tabEvents.push(bestPos);
-            });
-
-            return tabEvents;
-        }
-
-        // --- File Select & Audio Handling ---
-        async function handleFileSelect(event) {
-            const file = event.target.files[0];
+        async function handleFileSelect(e) {
+            const file = e.target.files[0];
             if (!file) return;
-
             document.getElementById('file-name').innerText = file.name;
             document.getElementById('file-info').classList.remove('hidden');
-
             const audioPlayer = document.getElementById('audio-player');
             audioPlayer.src = URL.createObjectURL(file);
 
             const arrayBuffer = await file.arrayBuffer();
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            document.getElementById('transcribe-btn').disabled = false;
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+            if (isModelLoaded) document.getElementById('transcribe-btn').disabled = false;
         }
 
-        // --- Microphone Recording ---
-        async function toggleMicRecording() {
-            const btn = document.getElementById('mic-btn');
-            const icon = document.getElementById('mic-icon');
-            const text = document.getElementById('mic-text');
-
-            if (!isRecordingMic) {
-                try {
-                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(micStream);
-                    recordedChunks = [];
-
-                    mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
-                    mediaRecorder.onstop = async () => {
-                        const blob = new Blob(recordedChunks, { type: 'audio/wav' });
-                        const audioPlayer = document.getElementById('audio-player');
-                        audioPlayer.src = URL.createObjectURL(blob);
-                        
-                        document.getElementById('file-name').innerText = "Grabación de Micrófono.wav";
-                        document.getElementById('file-info').classList.remove('hidden');
-
-                        const arrayBuffer = await blob.arrayBuffer();
-                        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                        document.getElementById('transcribe-btn').disabled = false;
-                    };
-
-                    mediaRecorder.start();
-                    isRecordingMic = true;
-                    text.innerText = "Detener";
-                    icon.className = "fa-solid fa-stop text-red-500 animate-pulse";
-                } catch (err) {
-                    alert("No se pudo acceder al micrófono.");
-                }
-            } else {
-                mediaRecorder.stop();
-                micStream.getTracks().forEach(track => track.stop());
-                isRecordingMic = false;
-                text.innerText = "Grabar Mic";
-                icon.className = "fa-solid fa-microphone text-red-400";
+        function initSynth() {
+            if (!guitarSynth && typeof Tone !== 'undefined') {
+                guitarSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.005, decay: 1.0, sustain: 0.1, release: 1.0 }
+                }).toDestination();
             }
         }
 
-        // --- Core Transcription Process ---
-        async function startTranscription() {
-            if (!audioBuffer) return;
-
+        async function startBasicPitchTranscription() {
+            if (!audioBuffer || !basicPitchModel) return;
             stopMidiPlay();
-            initMidiSynth();
+            initSynth();
 
-            const progressContainer = document.getElementById('progress-bar-container');
-            const progressBar = document.getElementById('progress-bar');
-            const progressPercent = document.getElementById('progress-percent');
-            const progressStatus = document.getElementById('progress-status-text');
+            const container = document.getElementById('progress-container');
+            const bar = document.getElementById('progress-bar');
+            const pctText = document.getElementById('progress-percent');
+            const statusText = document.getElementById('progress-status');
+            container.classList.remove('hidden');
 
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = '0%';
-            progressPercent.innerText = '0%';
-            progressStatus.innerText = 'Procesando buffer de audio...';
+            // Recoger valores de los sliders ajustados anti-ruido
+            const onsetThresh = parseFloat(document.getElementById('onset-slider').value);
+            const frameThresh = parseFloat(document.getElementById('frame-slider').value);
 
-            const channelData = audioBuffer.getChannelData(0);
-            const sampleRate = audioBuffer.sampleRate;
-            
-            const divFactor = parseInt(document.getElementById('quantize-select').value);
-            const frameTime = 0.85 / divFactor;
-            const frameSize = Math.floor(sampleRate * frameTime);
-            const totalFrames = Math.floor(channelData.length / frameSize);
+            try {
+                let framesData = [], onsetsData = [], contoursData = [];
+                await basicPitch.evaluateModel(
+                    audioBuffer,
+                    basicPitchModel,
+                    (p) => {
+                        const val = Math.round(p * 100);
+                        bar.style.width = val + '%';
+                        pctText.innerText = val + '%';
+                        statusText.innerText = 'Procesando red neuronal y filtrando ruido...';
+                    },
+                    (f, o, c) => {
+                        framesData.push(...f);
+                        onsetsData.push(...o);
+                        contoursData.push(...c);
+                    }
+                );
 
-            let detectedMidiNotes = [];
-
-            for (let i = 0; i < totalFrames; i++) {
-                const startSample = i * frameSize;
-                const segment = channelData.subarray(startSample, startSample + frameSize);
+                statusText.innerText = 'Eliminando notas fantasma y mapeando diapasón...';
                 
-                const freq = detectPitch(segment, sampleRate);
-                if (freq) {
-                    const midi = freqToMidi(freq);
-                    detectedMidiNotes.push({ frame: i, midi: midi, freq: freq });
-                } else {
-                    detectedMidiNotes.push(null);
-                }
-
-                if (i % 20 === 0 || i === totalFrames - 1) {
-                    const pct = Math.round((i / totalFrames) * 100);
-                    progressBar.style.width = `${pct}%`;
-                    progressPercent.innerText = `${pct}%`;
-                    await new Promise(r => setTimeout(r, 1));
-                }
+                // Parámetro de duración mínima aumentado a 8 para descartar notas fantasma ultra cortas
+                const notes = basicPitch.noteFramesToTime(
+                    framesData, 
+                    onsetsData, 
+                    contoursData, 
+                    onsetThresh, 
+                    frameThresh, 
+                    8, 
+                    true
+                );
+                
+                processNotesToTabAndMidi(notes);
+            } catch (err) {
+                console.error(err);
+                alert('Ocurrió un error al procesar la canción con la IA.');
+            } finally {
+                container.classList.add('hidden');
             }
+        }
 
-            progressStatus.innerText = 'Generando tablatura y secuencia MIDI...';
-
-            const tabPositions = mapNotesToTab(detectedMidiNotes);
+        function processNotesToTabAndMidi(notes) {
+            const tuningKey = document.getElementById('tuning-select').value;
+            const tuning = TUNINGS[tuningKey].midi;
             
-            // Build sequence dataset for MIDI playback
-            midiSequenceData = [];
-            const stepDuration = 60 / midiBpm / 2; // 8th note duration at selected BPM
+            notes.sort((a, b) => a.startTimeSeconds - b.startTimeSeconds);
 
-            tabPositions.forEach((pos, idx) => {
-                if (pos) {
+            midiSequenceData = [];
+            const timeStep = 0.25;
+            const maxTime = notes.reduce((max, n) => Math.max(max, n.endTimeSeconds), 0);
+            totalMidiDuration = maxTime || 5;
+
+            const totalCols = Math.ceil(totalMidiDuration / timeStep);
+            let grid = Array.from({length: 6}, () => Array(totalCols).fill(null));
+
+            notes.forEach(note => {
+                const midiVal = Math.round(note.pitchMidi);
+                if (midiVal < 38 || midiVal > 88) return;
+
+                const colIndex = Math.floor(note.startTimeSeconds / timeStep);
+
+                let bestStr = -1, bestFret = 99;
+                for (let s = 0; s < 6; s++) {
+                    const fret = midiVal - tuning[s];
+                    if (fret >= 0 && fret <= 22) {
+                        if (fret < bestFret) {
+                            bestFret = fret;
+                            bestStr = s;
+                        }
+                    }
+                }
+
+                if (bestStr !== -1 && colIndex < totalCols) {
+                    grid[5 - bestStr][colIndex] = bestFret;
+
+                    const noteName = Tone.Frequency(midiVal, "midi").toNote();
                     midiSequenceData.push({
-                        time: idx * stepDuration,
-                        duration: stepDuration * 0.9,
-                        midi: pos.midi,
-                        pitch: midiToPitchName(pos.midi),
-                        string: pos.string,
-                        fret: pos.fret,
-                        colIndex: idx
+                        time: note.startTimeSeconds,
+                        duration: Math.max(0.1, note.durationSeconds),
+                        pitch: noteName,
+                        colIndex: colIndex
                     });
                 }
             });
 
-            totalMidiDuration = tabPositions.length * stepDuration;
-            renderAsciiTab(tabPositions);
+            renderTabGrid(grid, totalCols);
 
             document.getElementById('midi-play-btn').disabled = midiSequenceData.length === 0;
             document.getElementById('midi-stop-btn').disabled = midiSequenceData.length === 0;
-            updateMidiTimer(0, totalMidiDuration);
-
-            progressContainer.classList.add('hidden');
         }
 
-        // --- Render ASCII Tablature with Interactive Column Spans ---
-        function renderAsciiTab(positions) {
-            const stringNames = TUNINGS[currentTuningKey].notes; // High to Low: e, B, G, D, A, E
-            const tabOutput = document.getElementById('tab-output');
-
-            if (!positions || positions.length === 0 || positions.every(p => p === null)) {
-                tabOutput.innerHTML = `<span class="text-slate-600 italic">// No se detectaron notas de guitarra claras en el audio. Ajusta la sensibilidad o prueba con otra pista.</span>`;
-                return;
-            }
-
-            const headerInfo = `// Tablatura Generada por GuitarTab AI\n// Afinación: ${TUNINGS[currentTuningKey].name} (${stringNames.join(' ')})\n\n`;
-            
-            let htmlStr = headerInfo;
-            const totalSteps = positions.length;
+        function renderTabGrid(grid, totalCols) {
+            const stringNames = ["e", "B", "G", "D", "A", "E"];
+            let html = "";
 
             for (let s = 0; s < 6; s++) {
-                const label = stringNames[s].padEnd(2, ' ') + "|-";
-                htmlStr += label;
-
-                for (let col = 0; col < totalSteps; col++) {
-                    const pos = positions[col];
-                    let colText = "---";
-                    if (pos && pos.string === s) {
-                        const fretStr = pos.fret.toString();
-                        colText = fretStr.length === 1 ? `${fretStr}--` : `${fretStr}-`;
+                let line = stringNames[s].padEnd(2, ' ') + "|-";
+                for (let col = 0; col < totalCols; col++) {
+                    const fret = grid[s][col];
+                    let text = "---";
+                    if (fret !== null) {
+                        const fStr = fret.toString();
+                        text = fStr.length === 1 ? `${fStr}--` : `${fStr}-`;
                     }
-                    htmlStr += `<span class="tab-column" id="tab-col-${col}-str-${s}" data-col="${col}" onclick="seekMidiToCol(${col})">${colText}</span>`;
+                    line += `<span class="tab-column" id="col-${col}-str-${s}" onclick="seekAndPlay(${col})">${text}</span>`;
                 }
-
-                htmlStr += "|\n";
+                html += line + "|\n";
             }
-
-            tabOutput.innerHTML = htmlStr;
+            document.getElementById('tab-output').innerHTML = html;
         }
 
-        // --- MIDI Interactive Playback & Playhead Logic ---
         async function toggleMidiPlay() {
-            if (midiSequenceData.length === 0) return;
-
+            if (!midiSequenceData.length) return;
             if (isMidiPlaying) {
-                pauseMidiPlay();
+                Tone.Transport.pause();
+                isMidiPlaying = false;
+                updatePlayUI(false);
             } else {
                 await Tone.start();
-                initMidiSynth();
+                initSynth();
                 Tone.Transport.bpm.value = midiBpm;
-
                 Tone.Transport.cancel();
                 Tone.Transport.position = 0;
 
-                midiSequenceData.forEach(event => {
-                    Tone.Transport.schedule((time) => {
-                        guitarSynth.triggerAttackRelease(event.pitch, event.duration, time);
-                        Tone.Draw.schedule(() => {
-                            highlightColumn(event.colIndex);
-                        }, time);
-                    }, event.time);
+                midiSequenceData.forEach(ev => {
+                    Tone.Transport.schedule(time => {
+                        guitarSynth.triggerAttackRelease(ev.pitch, ev.duration, time);
+                        Tone.Draw.schedule(() => highlightCol(ev.colIndex), time);
+                    }, ev.time);
                 });
 
-                Tone.Transport.schedule((time) => {
-                    Tone.Draw.schedule(() => {
-                        stopMidiPlay();
-                    }, time);
+                Tone.Transport.schedule(time => {
+                    Tone.Draw.schedule(() => stopMidiPlay(), time);
                 }, totalMidiDuration);
 
                 Tone.Transport.start();
                 isMidiPlaying = true;
-                updateMidiPlayUI(true);
+                updatePlayUI(true);
                 animatePlayhead();
             }
-        }
-
-        function pauseMidiPlay() {
-            if (typeof Tone !== 'undefined') {
-                Tone.Transport.pause();
-            }
-            isMidiPlaying = false;
-            if (playbackAnimFrame) cancelAnimationFrame(playbackAnimFrame);
-            updateMidiPlayUI(false);
         }
 
         function stopMidiPlay() {
@@ -673,142 +411,87 @@
                 Tone.Transport.cancel();
             }
             isMidiPlaying = false;
-            if (playbackAnimFrame) cancelAnimationFrame(playbackAnimFrame);
-            
             clearHighlights();
-            const playhead = document.getElementById('playhead');
-            playhead.classList.add('hidden');
-            
-            updateMidiPlayUI(false);
-            updateMidiTimer(0, totalMidiDuration);
+            document.getElementById('playhead').classList.add('hidden');
+            updatePlayUI(false);
         }
 
-        function updateMidiPlayUI(playing) {
+        function updatePlayUI(playing) {
             const btn = document.getElementById('midi-play-btn');
             const icon = document.getElementById('midi-play-icon');
             const text = document.getElementById('midi-play-text');
-
             if (playing) {
-                icon.className = 'fa-solid fa-pause';
-                text.innerText = 'Pausar MIDI';
-                btn.className = 'px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-2 shadow-md';
+                icon.className = "fa-solid fa-pause";
+                text.innerText = "Pausar MIDI";
+                btn.className = "px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-lg shadow-md flex items-center gap-2";
             } else {
-                icon.className = 'fa-solid fa-play';
-                text.innerText = 'Reproducir MIDI';
-                btn.className = 'px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg transition-all flex items-center gap-2 shadow-md';
+                icon.className = "fa-solid fa-play";
+                text.innerText = "Reproducir MIDI";
+                btn.className = "px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-md flex items-center gap-2";
             }
         }
 
         function animatePlayhead() {
             if (!isMidiPlaying) return;
+            const currTime = Tone.Transport.seconds;
+            updateTimer(currTime, totalMidiDuration);
 
-            const currentTime = Tone.Transport.seconds;
-            updateMidiTimer(currentTime, totalMidiDuration);
-
-            const stepDuration = 60 / midiBpm / 2;
-            const currentCol = Math.floor(currentTime / stepDuration);
-            updatePlayheadPosition(currentCol);
-
-            playbackAnimFrame = requestAnimationFrame(animatePlayhead);
-        }
-
-        function updatePlayheadPosition(colIndex) {
-            const targetEl = document.getElementById(`tab-col-${colIndex}-str-0`);
+            const colIndex = Math.floor(currTime / 0.25);
+            const target = document.getElementById(`col-${colIndex}-str-0`);
             const playhead = document.getElementById('playhead');
             const container = document.getElementById('tab-container');
 
-            if (targetEl && container) {
-                const rect = targetEl.getBoundingClientRect();
-                const containerRect = container.getBoundingClientRect();
-
-                const leftPos = rect.left - containerRect.left + container.scrollLeft;
-                playhead.style.left = `${leftPos}px`;
+            if (target && container) {
+                const rect = target.getBoundingClientRect();
+                const contRect = container.getBoundingClientRect();
+                playhead.style.left = `${rect.left - contRect.left + container.scrollLeft}px`;
                 playhead.classList.remove('hidden');
-
-                if (rect.right > containerRect.right - 40) {
-                    container.scrollLeft += 150;
-                } else if (rect.left < containerRect.left + 40) {
-                    container.scrollLeft = Math.max(0, container.scrollLeft - 150);
-                }
             }
+            playbackAnimFrame = requestAnimationFrame(animatePlayhead);
         }
 
-        function seekMidiToCol(colIndex) {
-            if (midiSequenceData.length === 0) return;
-
-            const stepDuration = 60 / midiBpm / 2;
-            const seekTime = colIndex * stepDuration;
-
-            if (typeof Tone !== 'undefined') {
-                Tone.Transport.seconds = seekTime;
-            }
-
-            highlightColumn(colIndex);
-            updatePlayheadPosition(colIndex);
-            updateMidiTimer(seekTime, totalMidiDuration);
-
-            const noteEvent = midiSequenceData.find(e => e.colIndex === colIndex);
-            if (noteEvent && guitarSynth) {
-                guitarSynth.triggerAttackRelease(noteEvent.pitch, "8n");
-            }
+        function seekAndPlay(colIndex) {
+            const seekTime = colIndex * 0.25;
+            if (typeof Tone !== 'undefined') Tone.Transport.seconds = seekTime;
+            highlightCol(colIndex);
+            updateTimer(seekTime, totalMidiDuration);
         }
 
-        function highlightColumn(colIndex) {
+        function highlightCol(col) {
             clearHighlights();
             for (let s = 0; s < 6; s++) {
-                const el = document.getElementById(`tab-col-${colIndex}-str-${s}`);
+                const el = document.getElementById(`col-${col}-str-${s}`);
                 if (el) el.classList.add('active-note');
             }
         }
 
         function clearHighlights() {
-            document.querySelectorAll('.tab-column.active-note').forEach(el => {
-                el.classList.remove('active-note');
-            });
+            document.querySelectorAll('.tab-column.active-note').forEach(el => el.classList.remove('active-note'));
         }
 
-        function updateMidiTimer(current, total) {
-            const fmt = (s) => {
-                const m = Math.floor(s / 60);
-                const sec = Math.floor(s % 60);
-                return `${m < 10 ? '0' : ''}${m}:${sec < 10 ? '0' : ''}${sec}`;
+        function updateTimer(curr, total) {
+            const fmt = s => {
+                const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+                return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
             };
-            document.getElementById('midi-timer').innerText = `${fmt(current)} / ${fmt(total)}`;
+            document.getElementById('midi-timer').innerText = `${fmt(curr)} / ${fmt(total)}`;
         }
 
-        function updateTuning() {
-            currentTuningKey = document.getElementById('tuning-select').value;
+        function updateTempo(val) {
+            midiBpm = parseInt(val);
+            document.getElementById('tempo-val').innerText = `${midiBpm} BPM`;
+            if (typeof Tone !== 'undefined') Tone.Transport.bpm.value = midiBpm;
         }
 
         function clearTab() {
             stopMidiPlay();
             midiSequenceData = [];
-            document.getElementById('tab-output').innerText = "// Tablatura limpiada.";
-            document.getElementById('midi-play-btn').disabled = true;
-            document.getElementById('midi-stop-btn').disabled = true;
-            document.getElementById('playhead').classList.add('hidden');
+            document.getElementById('tab-output').innerHTML = '<span class="text-slate-600 italic">// Tablatura limpiada.</span>';
         }
 
-        function copyTabToClipboard() {
-            const tabOutput = document.getElementById('tab-output');
-            const text = tabOutput.innerText;
-            if (!text || text.startsWith("// Sube")) return;
-
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-
-            const btn = event.currentTarget;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = `<i class="fa-solid fa-check"></i> ¡Copiado!`;
-            btn.classList.add('bg-green-500', 'text-slate-950');
-            setTimeout(() => {
-                btn.innerHTML = originalText;
-                btn.classList.remove('bg-green-500', 'text-slate-950');
-            }, 2000);
+        function copyTab() {
+            navigator.clipboard.writeText(document.getElementById('tab-output').innerText);
+            alert('¡Tablatura copiada al portapapeles!');
         }
     </script>
 </body>
